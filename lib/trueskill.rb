@@ -1,5 +1,5 @@
-require "trueskill/version"
+require "true_skill/version"
 
-module Trueskill
+module TrueSkill
   # Your code goes here...
 end
