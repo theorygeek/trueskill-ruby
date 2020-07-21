@@ -36,6 +36,35 @@ class PossibleGame
   end
 end
 
+class Player
+  attr_accessor :name, :rating, :games_played, :games_won
+
+  def initialize(name)
+    @name = name
+    @rating = TrueSkill::Rating.new(25.0, 25.0 / 3.0)
+    @games_played = 0
+    @games_won = 0
+  end
+
+  LOW = 25.0 / 3.0
+  MEDIUM = LOW / 2.0
+  HIGH = LOW / 3.0
+
+  def confidence
+    if rating.standard_deviation <= HIGH
+      'high'
+    elsif rating.standard_deviation <= MEDIUM
+      'medium'
+    else
+      'low'
+    end
+  end
+
+  def winrate
+    (games_won.to_f / games_played.to_f) * 100.0
+  end
+end
+
 class Leaderboard
   def self.show(*args)
     new(*args).show
@@ -45,19 +74,23 @@ class Leaderboard
     calculate_new_ratings(game)
   end
 
-  HEADLINE = ['#', 'Player', 'Mean', 'Stdev']
+  HEADLINE = ['#', 'Player', 'Mean', 'Confidence', 'Games Won', 'Games Played', 'Win Rate']
   SPACER = '  '
 
   def show
-    sorted = player_rating.sort_by { |player_name, rating| [-rating.mean, rating.standard_deviation] }
+    sorted = player_rating.sort_by { |player_name, player| [-player.rating.mean, player.rating.standard_deviation] }
+
 
     output = [HEADLINE]
-    sorted.each_with_index do |(player_name, rating), index|
+    sorted.each_with_index do |(player_name, player), index|
       output << [
         index + 1,
         player_name,
-        rating.mean.round(1),
-        rating.standard_deviation.round(1)
+        player.rating.mean.round(1),
+        "#{player.confidence} (#{player.rating.standard_deviation.round(1)})",
+        player.games_won,
+        player.games_played,
+        player.winrate
       ]
     end
 
@@ -70,12 +103,12 @@ class Leaderboard
       ignore = Set.new
       game_players.combination(2).each do |team1_players|
         team1 = team1_players
-          .map { |player_name| [player_name, player_rating[player_name]] }
+          .map { |player_name| [player_name, player_rating[player_name].rating] }
           .to_h
 
         team2_players = game_players - team1_players
         team2 = team2_players
-          .map { |player_name| [player_name, player_rating[player_name]] }
+          .map { |player_name| [player_name, player_rating[player_name].rating] }
           .to_h
 
         next unless ignore.add?(team1_players)
@@ -106,21 +139,33 @@ class Leaderboard
     result.sort_by { |pg| -pg.quality }
   end
 
+  private def format(value)
+    if value.is_a?(Numeric) && value.finite?
+      value.to_s
+    elsif value.is_a?(Numeric)
+      "N/A"
+    else
+      value.to_s
+    end
+  end
+
   private def display(output, header: true)
     columns = output.map(&:size).max
     column_sizes = (0...columns).map do |column|
       biggest = output.max_by { |row| row[column].to_s.size }
-      [column, biggest[column].to_s.size]
+      [column, format(biggest[column]).size]
     end
 
     column_sizes = column_sizes.to_h
 
     output.each_with_index do |row, row_index|
       row.each_with_index do |value, col_index|
-        if value.is_a?(Numeric)
-          value = value.to_s.rjust(column_sizes[col_index])
+        value = if value.is_a?(Numeric) && value.finite?
+          format(value).rjust(column_sizes[col_index])
+        elsif value.is_a?(Numeric)
+          format(value).rjust(column_sizes[col_index])
         else
-          value = value.to_s.ljust(column_sizes[col_index])
+          format(value).ljust(column_sizes[col_index])
         end
 
         print(value)
@@ -145,10 +190,12 @@ class Leaderboard
   private def calculate_new_ratings(game)
     team1 = build_team(game.team1)
     team2 = build_team(game.team2)
-    rankings = if game.winner == :team1
-      [1, 2]
+    if game.winner == :team1
+      winners = game.team1
+      rankings = [1, 2]
     else
-      [2, 1]
+      winners = game.team2
+      rankings = [2, 1]
     end
 
     results = TrueSkill::TwoTeamCalculator.calculate_new_ratings(
@@ -158,13 +205,18 @@ class Leaderboard
     )
 
     results.each do |player_name, rating|
-      player_rating[player_name] = rating
+      player_rating[player_name].rating = rating
+      player_rating[player_name].games_played += 1
+
+      if winners.include?(player_name)
+        player_rating[player_name].games_won += 1
+      end
     end
   end
 
   private def build_team(players)
     ratings = players.map do |player_name|
-      rating = player_rating[player_name]
+      rating = player_rating[player_name].rating
       [player_name, rating]
     end
 
@@ -173,7 +225,7 @@ class Leaderboard
 
   private def player_rating
     @player_rating ||= Hash.new do |hash, player_name|
-      hash[player_name] = TrueSkill::Rating.new(25.0, 25.0 / 3.0)
+      hash[player_name] = Player.new(player_name)
     end
   end
 end
