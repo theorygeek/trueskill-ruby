@@ -1,4 +1,4 @@
-require "true_skill/version"
+require "trueskill/version"
 
 module TrueSkill
   # Your code goes here...
