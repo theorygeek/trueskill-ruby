@@ -30,8 +30,10 @@ module TrueSkill
       matrix_row_values.freeze
       matrix_row_values.each(&:freeze)
     end
-
-    delegate :[], to: :matrix_row_values
+    
+    def [](*args)
+      matrix_row_values[*args]
+    end
 
     def transpose
       # Just flip everything
