@@ -1,17 +1,10 @@
 require_relative 'lib/trueskill'
 require_relative 'simple_leaderboard'
 
-QUALITY_STRING = <<~STRING
-  ---------------------------------------------------
-  Possible Match (Q: %{quality}%%)
-  ---------------------------------------------------
-  Winners:  %{winners}
-  Losers:   %{losers}
-  Winning team has %{probability}%% chance to win.
-STRING
+TEAMS = 3
+PLAYERS_PER_TEAM = 1
 
-spades = 
-[
+spades = [
   # Game 1
   [  
     ['shaun', 'ryan'],
@@ -47,9 +40,14 @@ spades =
     ['shaun', 'ruby'],
     ['rylee', 'ryan'],
   ],
+  # Game 8
+  [  
+    ['shaun', 'ruby'],
+    ['rylee', 'ryan'],
+  ],
 ]
 
-leaderboard = Leaderboard.new
+leaderboard = Leaderboard.new(TrueSkill::GameInfo.new(draw_probability: 0))
 spades.each_with_index do |game, index|
   leaderboard << game
 end
@@ -60,11 +58,20 @@ puts("-" * 90)
 leaderboard.show
 puts('')
 
+QUALITY_STRING = <<~STRING
+  ---------------------------------------------------
+  Possible Match (Q: %{quality}%%)
+  ---------------------------------------------------
+  Winners:  %{winners}
+  Losers:   %{losers}
+  Winning team has %{probability}%% chance to win.
+STRING
 
-leaderboard.match_qualities.take(3).each do |possible_game|
+possible_games = leaderboard.possible_games(players_per_team: PLAYERS_PER_TEAM, teams: TEAMS)
+[possible_games[0], possible_games[-1]].compact.each do |possible_game|
   puts(QUALITY_STRING % {
-    winners: possible_game.high_team.join(' & '),
-    losers: possible_game.low_team.join(' & '),
+    winners: possible_game.winners.join(' & '),
+    losers: possible_game.losers.map { |players| players.join(' & ') }.join(', '),
     quality: (possible_game.quality * 100.0).round,
     probability: (possible_game.probability * 100.0).round,
   })
