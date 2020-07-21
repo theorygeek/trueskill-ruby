@@ -2,23 +2,51 @@ require 'pry'
 require 'set'
 
 class PossibleGame
-  attr_accessor :high_team, :low_team, :quality, :probability
+  attr_reader :teams, :quality, :game_info, :possible_outcomes, :winning_ranking
 
-  # @param high_team Team that is most likely to win
-  # @param low_team Team that is least likely to win
+  # @param teams Array of team hashes
   # @param quality Quality score of the match
-  # @param probability Probability that the high team wins
-  def initialize(high_team:, low_team:, quality:, probability:)
-    raise ArgumentError, "high_team must be Array" unless high_team.is_a?(Array)
-    raise ArgumentError, "low_team must be Array" unless low_team.is_a?(Array)
+  def initialize(teams:, quality:, game_info:)
+    raise ArgumentError, "teams must be an Array" unless teams.is_a?(Array)
     raise ArgumentError, "quality must be Float" unless quality.is_a?(Float)
-    raise ArgumentError, "probability must be Float" unless probability.is_a?(Float)
+    raise ArgumentError, "game_info must be TrueSkill::GameInfo" unless game_info.is_a?(TrueSkill::GameInfo)
 
-    @high_team = high_team
-    @low_team = low_team
+    @teams = teams.each(&:freeze).freeze
     @quality = quality
-    @probability = probability
+    @game_info = game_info
+
+    @possible_outcomes = {}
+    (1..teams.size).to_a.permutation.each do |ranking|
+      possible_outcomes[ranking] = TrueSkill::FactorGraphTrueSkillCalculator.outcome_probability(
+        game_info,
+        teams,
+        ranking
+      )
+    end
+
+    @winning_ranking = possible_outcomes.max_by { |k, v| v }[0]
+    losers
     freeze
+  end
+
+  def winners
+    teams[winning_ranking.index(1)].keys
+  end
+
+  def probability
+    possible_outcomes[winning_ranking]
+  end
+
+  def losers
+    return @losers if defined?(@losers)
+    
+    @losers = []
+    winning_ranking.each_with_index do |rank, index|
+      next if rank == 1
+      @losers << teams[index].keys
+    end
+    
+    @losers
   end
 end
 
@@ -47,16 +75,27 @@ class Player
   end
 
   def winrate
+    return Float::INFINITY if games_played == 0
     (games_won.to_f / games_played.to_f * 100.0).round
   end
 end
 
 class Leaderboard
+  attr_reader :game_info
+  def initialize(game_info)
+    @game_info = game_info.freeze
+  end
+
   # Adds a new game to the leaderboard.
   # @param game Should be an array of arrays of strings that representing the teams in
   # order of their finish.
   def <<(game)
     calculate_new_ratings(game)
+  end
+
+  def add_player(name)
+    player_rating[name]
+    nil
   end
 
   HEADLINE = ['#', 'Player', 'Mean', 'Confidence', 'Games Won', 'Games Played', 'Win Rate']
@@ -81,46 +120,44 @@ class Leaderboard
     display(output)
   end
 
-  def match_qualities
-    result = []
-    player_rating.keys.combination(4).each do |game_players|
-      ignore = Set.new
-      game_players.combination(2).each do |team1_players|
-        team1 = team1_players
-          .map { |player_name| [player_name, player_rating[player_name].rating] }
-          .to_h
+  def possible_games(players_per_team: 1, teams: 3)
+    players = teams * players_per_team
 
-        team2_players = game_players - team1_players
-        team2 = team2_players
-          .map { |player_name| [player_name, player_rating[player_name].rating] }
-          .to_h
-
-        next unless ignore.add?(team1_players)
-        next unless ignore.add?(team2_players)
-
-        quality = TrueSkill::TwoTeamCalculator.match_quality(game_info, [team1, team2])
-        probability = TrueSkill::FactorGraphTrueSkillCalculator.outcome_probability(
-          game_info,
-          [team1, team2],
-          [1, 2]
-        )
-
-        if probability < 0.5
-          # Swap so that team 1 is most likely to win
-          team1, team2 = team2, team1
-          probability = 1.0 - probability
-        end
-
-        result << PossibleGame.new(
-          high_team: team1.keys.sort,
-          low_team: team2.keys.sort,
-          quality: quality,
-          probability: probability
-        )
+    matches = Set.new
+    player_rating.keys.combination(players).each do |game_players|
+      construct_possible_teams(game_players, players / teams) do |possible_game|
+        matches.add(possible_game.to_set)
       end
     end
 
-    result.sort_by { |pg| -pg.quality }
+    result = matches.map do |teams|
+      team_ratings = teams.map { |players| build_team(players) }
+      quality = TrueSkill::FactorGraphTrueSkillCalculator.match_quality(game_info, team_ratings)
+
+      PossibleGame.new(
+        teams: team_ratings,
+        quality: quality,
+        game_info: game_info
+      )
+    end
+
+    result.sort_by { |r| -r.quality }
+  end
+
+  def construct_possible_teams(starting_players, players_per_team)
+    return to_enum(:construct_possible_teams, starting_players, players_per_team) unless block_given?
+
+    starting_players.combination(players_per_team).each do |team1|
+      remaining_players = starting_players - team1
+
+      if remaining_players.size == players_per_team
+        yield Set.new([team1, remaining_players])
+      else
+        construct_possible_teams(remaining_players, players_per_team) do |other_teams|
+          yield Set.new([team1, *other_teams.to_a])
+        end
+      end
+    end
   end
 
   private def format(value)
@@ -165,10 +202,6 @@ class Leaderboard
         print("\n")
       end
     end
-  end
-
-  private def game_info
-    @game_info ||= TrueSkill::GameInfo.new(draw_probability: 0.1).freeze
   end
 
   private def calculate_new_ratings(teams)
