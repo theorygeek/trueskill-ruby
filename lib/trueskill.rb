@@ -1,3 +1,5 @@
+require "trueskill/version"
+
 module TrueSkill
 end
 
