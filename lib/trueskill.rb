@@ -1,4 +1,4 @@
-require "trueskill/version"
+require_relative "trueskill/version"
 
 module TrueSkill
 end

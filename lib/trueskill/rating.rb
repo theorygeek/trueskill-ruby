@@ -1,7 +1,7 @@
 module TrueSkill
   class Rating
 
-    CONSERVATIVE_FACTOR = 3
+    CONSERVATIVE_FACTOR = 2
 
     attr_reader :mean, :standard_deviation
 
@@ -11,7 +11,11 @@ module TrueSkill
     end
 
     def conservative_rating
-      mean - CONSERVATIVE_FACTOR * standard_deviation
+      mean - penalty
+    end
+
+    def penalty
+      CONSERVATIVE_FACTOR * standard_deviation
     end
 
     def public_rating

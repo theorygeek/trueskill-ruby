@@ -45,6 +45,12 @@ spades = [
     ['shaun', 'ruby'],
     ['rylee', 'ryan'],
   ],
+  # Game 9
+  [
+    %w[ryan],
+    %w[rylee],
+    %w[ruby]
+  ]
 ]
 
 leaderboard = Leaderboard.new(TrueSkill::GameInfo.new(draw_probability: 0))

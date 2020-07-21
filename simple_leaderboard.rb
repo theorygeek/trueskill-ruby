@@ -98,19 +98,19 @@ class Leaderboard
     nil
   end
 
-  HEADLINE = ['#', 'Player', 'Mean', 'Confidence', 'Games Won', 'Games Played', 'Win Rate']
+  HEADLINE = ['#', 'Player', 'Rating', 'Penalty', 'Games Won', 'Games Played', 'Win Rate']
   SPACER = '  '
 
   def show
-    sorted = player_rating.sort_by { |player_name, player| [-player.rating.mean, player.rating.standard_deviation] }
+    sorted = player_rating.sort_by { |player_name, player| -player.rating.conservative_rating }
 
     output = [HEADLINE]
     sorted.each_with_index do |(player_name, player), index|
       output << [
         index + 1,
         player_name,
-        player.rating.mean.round(1),
-        "#{player.confidence} (#{player.rating.standard_deviation.round(1)})",
+        player.rating.conservative_rating.round(1),
+        player.rating.penalty.round(1),
         player.games_won,
         player.games_played,
         player.winrate
