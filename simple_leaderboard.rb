@@ -1,20 +1,6 @@
 require 'pry'
 require 'set'
 
-class Game
-  attr_accessor :team1, :team2, :winner
-  def initialize(team1:, team2:, winner:)
-    raise ArgumentError, "team1 must be Array" unless team1.is_a?(Array)
-    raise ArgumentError, "team2 must be Array" unless team2.is_a?(Array)
-    raise ArgumentError, "winner must be :team1 or :team2" unless [:team1, :team2].include?(winner)
-
-    @team1 = team1.freeze
-    @team2 = team2.freeze
-    @winner = winner
-    freeze
-  end
-end
-
 class PossibleGame
   attr_accessor :high_team, :low_team, :quality, :probability
 
@@ -46,9 +32,9 @@ class Player
     @games_won = 0
   end
 
-  LOW = 25.0 / 3.0
-  MEDIUM = LOW / 2.0
-  HIGH = LOW / 3.0
+  LOW = (25.0 / 3.0)
+  MEDIUM = LOW / 1.25
+  HIGH = LOW / 1.75
 
   def confidence
     if rating.standard_deviation <= HIGH
@@ -61,15 +47,14 @@ class Player
   end
 
   def winrate
-    (games_won.to_f / games_played.to_f) * 100.0
+    (games_won.to_f / games_played.to_f * 100.0).round
   end
 end
 
 class Leaderboard
-  def self.show(*args)
-    new(*args).show
-  end
-
+  # Adds a new game to the leaderboard.
+  # @param game Should be an array of arrays of strings that representing the teams in
+  # order of their finish.
   def <<(game)
     calculate_new_ratings(game)
   end
@@ -79,7 +64,6 @@ class Leaderboard
 
   def show
     sorted = player_rating.sort_by { |player_name, player| [-player.rating.mean, player.rating.standard_deviation] }
-
 
     output = [HEADLINE]
     sorted.each_with_index do |(player_name, player), index|
@@ -187,20 +171,14 @@ class Leaderboard
     @game_info ||= TrueSkill::GameInfo.new(draw_probability: 0.1).freeze
   end
 
-  private def calculate_new_ratings(game)
-    team1 = build_team(game.team1)
-    team2 = build_team(game.team2)
-    if game.winner == :team1
-      winners = game.team1
-      rankings = [1, 2]
-    else
-      winners = game.team2
-      rankings = [2, 1]
-    end
+  private def calculate_new_ratings(teams)
+    team_ratings = teams.map { |players| build_team(players) }
+    rankings = (1..teams.size).to_a
+    winners = teams[0]
 
-    results = TrueSkill::TwoTeamCalculator.calculate_new_ratings(
+    results = TrueSkill::FactorGraphTrueSkillCalculator.calculate_new_ratings(
       game_info, 
-      [team1, team2], 
+      team_ratings, 
       rankings
     )
 

@@ -10,27 +10,43 @@ QUALITY_STRING = <<~STRING
   Winning team has %{probability}%% chance to win.
 STRING
 
-spades = [
-  Game.new(
-    team1: ['shaun', 'ryan'],
-    team2: ['rylee', 'ruby'],
-    winner: :team1
-  ),
-  Game.new(
-    team1: ['shaun', 'ryan'],
-    team2: ['rylee', 'ruby'],
-    winner: :team1
-  ),
-  Game.new(
-    team1: ['shaun', 'ryan'],
-    team2: ['rylee', 'ruby'],
-    winner: :team2
-  ),
-  Game.new(
-    team1: ['shaun', 'ryan'],
-    team2: ['rylee', 'ruby'],
-    winner: :team1
-  ),
+spades = 
+[
+  # Game 1
+  [  
+    ['shaun', 'ryan'],
+    ['rylee', 'ruby'],
+  ],
+  # Game 2
+  [  
+    ['shaun', 'ryan'],
+    ['rylee', 'ruby'],
+  ],
+  # Game 3
+  [  
+    ['rylee', 'ruby'],
+    ['shaun', 'ryan'],
+  ],
+  # Game 4
+  [  
+    ['shaun', 'ryan'],
+    ['rylee', 'ruby'],
+  ],
+  # Game 5
+  [  
+    ['shaun', 'ruby'],
+    ['rylee', 'ryan'],
+  ],
+  # Game 6
+  [  
+    ['rylee', 'ryan'],
+    ['shaun', 'ruby'],
+  ],
+  # Game 7
+  [  
+    ['shaun', 'ruby'],
+    ['rylee', 'ryan'],
+  ],
 ]
 
 leaderboard = Leaderboard.new
